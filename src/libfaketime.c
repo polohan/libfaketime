@@ -293,6 +293,7 @@ static int outfile = -1;
 
 static bool limited_faking = false;
 static long callcounter = 0;
+static long setcounter = 0;
 static long ft_start_after_secs = -1;
 static long ft_stop_after_secs = -1;
 static long ft_start_after_ncalls = -1;
@@ -2343,8 +2344,9 @@ static void parse_ft_string(const char *user_faked_time)
   struct tm user_faked_time_tm;
   char * tmp_time_fmt;
   char * nstime_str;
+  setcounter++;
 
-  if (!strncmp(user_faked_time, user_faked_time_saved, BUFFERLEN))
+  if (!strncmp(user_faked_time, user_faked_time_saved, BUFFERLEN) && getenv("FAKETIME_NO_CACHE") == NULL)
   {
       /* No change but eventually when using FAKETIME_FOLLOW_FILE */
       if (user_faked_time[0] != '%')
@@ -2398,6 +2400,48 @@ static void parse_ft_string(const char *user_faked_time)
       user_offset.tv_nsec = (frac_offset - user_offset.tv_sec) * SEC_TO_nSEC;
       timespecadd(&ftpl_starttime.real, &user_offset, &user_faked_time_timespec);
       goto parse_modifiers;
+      break;
+
+
+    case 's':
+      if (ft_mode != FT_NOOP) ft_mode = FT_FREEZE;
+      char switch_faked_time_0[] = "2021-12-31 23:59:59";
+      char switch_faked_time_1[] = "2022-01-01 00:00:00";
+      char *switch_faked_time = NULL;
+      int gap = 1;
+
+      if (getenv("GAP") != NULL) {
+        gap = atoi(getenv("GAP"));
+      }
+
+      if ((setcounter / gap) % 2 == 0) {
+        switch_faked_time = switch_faked_time_0;
+      } else {
+        switch_faked_time = switch_faked_time_1;
+      }
+
+      // Parse the value
+      user_faked_time_tm.tm_isdst = -1;
+      nstime_str = strptime(switch_faked_time, user_faked_time_fmt, &user_faked_time_tm);
+
+      if (NULL != nstime_str)
+      {
+        user_faked_time_timespec.tv_sec = mktime(&user_faked_time_tm);
+        user_faked_time_timespec.tv_nsec = 0;
+
+        if (nstime_str[0] == '.')
+        {
+          double nstime = atof(--nstime_str);
+          user_faked_time_timespec.tv_nsec = (nstime - floor(nstime)) * SEC_TO_nSEC;
+        }
+        user_faked_time_set = true;
+      }
+      else
+      {
+        perror("libfaketime: In parse_ft_string(), failed to parse FAKETIME timestamp");
+        fprintf(stderr, "Please check specification %s with format %s\n", user_faked_time, user_faked_time_fmt);
+        exit(EXIT_FAILURE);
+      }
       break;
 
       /* Contributed by David North, TDI in version 0.7 */
