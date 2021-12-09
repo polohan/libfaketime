@@ -2410,8 +2410,8 @@ static void parse_ft_string(const char *user_faked_time)
       char *switch_faked_time = NULL;
       int gap = 1;
 
-      if (getenv("GAP") != NULL) {
-        gap = atoi(getenv("GAP"));
+      if (strlen(user_faked_time) > 1) {
+        gap = atoi(user_faked_time + 1);
       }
 
       if ((setcounter / gap) % 2 == 0) {
